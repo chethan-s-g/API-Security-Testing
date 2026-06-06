@@ -23,8 +23,8 @@ public class BaseTest {
     public static boolean zapEnabled = false;
     private static ClientApi zapClient;
 
-    private static final String API_BASE = "http://host.docker.internal:8081/api";
-    private static final String TARGET = "http://host.docker.internal:8081";
+    private static final String API_BASE = "http://localhost:8081/api";
+    private static final String TARGET = "http://host.docker.internal:8081/api";
 
     // ✅ BEFORE SUITE
     @BeforeSuite

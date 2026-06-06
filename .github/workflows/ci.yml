@@ -46,14 +46,14 @@ jobs:
             -p 8080:8080 \
             --add-host=host.docker.internal:host-gateway \
             --name zap \
-            ghcr.io/zaproxy/zaproxy:2.14.0 \
+            ghcr.io/zaproxy/zaproxy:stable \
             zap.sh -daemon \
               -port 8080 \
               -host 0.0.0.0 \
               -config api.disablekey=true \
               -config api.addrs.addr.name=.* \
               -config api.addrs.addr.regex=true
-              
+
           echo "Waiting initial ZAP startup..."
           sleep 10
 

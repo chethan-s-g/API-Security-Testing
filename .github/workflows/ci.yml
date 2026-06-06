@@ -43,7 +43,20 @@ jobs:
             --name zap \
             ghcr.io/zaproxy/zaproxy:2.14.0 \
             zap.sh -daemon -port 8080 -host 0.0.0.0 -config api.disablekey=true
-          sleep 20
+
+      # ✅ ✅ NEW: Wait until ZAP is READY
+      - name: Wait for ZAP readiness
+        if: ${{ github.event.inputs.runSecurity == 'true' }}
+        run: |
+          echo "Checking ZAP readiness..."
+          for i in {1..20}; do
+            sleep 5
+            if curl -s http://localhost:8080 > /dev/null; then
+              echo "✅ ZAP is ready!"
+              break
+            fi
+            echo "Waiting for ZAP... ($i)"
+          done
 
       # ✅ Build API
       - name: Build and Start API
@@ -55,7 +68,7 @@ jobs:
           for i in {1..20}; do
             sleep 5
             if curl -s http://localhost:8081/api/users > /dev/null; then
-              echo "API started"
+              echo "✅ API Started"
               break
             fi
           done
@@ -72,18 +85,18 @@ jobs:
             sed -i 's|value="true"|value="false"|' testng.xml || true
           fi
 
-      # ✅ ✅ FIX: run VERIFY (not test)
+      # ✅ Run tests + Allure
       - name: Run Tests + Allure
         run: mvn -B clean verify
 
-      # ✅ Merge ZAP into correct folder
+      # ✅ Merge ZAP report into Allure
       - name: Merge ZAP
         if: ${{ github.event.inputs.runSecurity == 'true' }}
         run: |
           mkdir -p target/allure-report/zap
           cp zap-report.html target/allure-report/zap/index.html || true
 
-      # ✅ ✅ FIX: upload correct folder
+      # ✅ Upload Allure report
       - name: Upload Pages
         uses: actions/upload-pages-artifact@v4
         with:

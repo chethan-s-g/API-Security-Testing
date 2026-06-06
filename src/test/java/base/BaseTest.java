@@ -36,7 +36,8 @@ public class BaseTest {
         RestAssured.baseURI = API_BASE;
 
         if (zapEnabled) {
-            RestAssured.proxy("localhost", 8080);
+            // RestAssured.proxy("localhost", 8080);
+            RestAssured.baseURI = API_BASE;
             zapClient = new ClientApi("localhost", 8080);
 
             System.out.println("✅ ZAP ENABLED");

@@ -4,9 +4,13 @@ on:
   workflow_dispatch:
     inputs:
       runSecurity:
-        description: 'Run ZAP active-scan (true/false)'
-        required: false
-        default: 'false'
+        description: 'Run ZAP active-scan'
+        required: true
+        type: choice
+        options:
+          - "false"
+          - "true"
+        default: "false"
 
 permissions:
   contents: read

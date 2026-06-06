@@ -1,9 +1,22 @@
-<project xmlns="http://maven.apache.org/POM/4.0.0">
+<project xmlns="http://maven.apache.org/POM/4.0.0"
+         xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+         xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 https://maven.apache.org/xsd/maven-4.0.0.xsd">
+
     <modelVersion>4.0.0</modelVersion>
 
     <groupId>com.test</groupId>
     <artifactId>framework</artifactId>
     <version>1.0</version>
+
+    <!-- ✅ ✅ IMPORTANT: ADD PROPERTIES -->
+    <properties>
+        <maven.compiler.source>17</maven.compiler.source>
+        <maven.compiler.target>17</maven.compiler.target>
+
+        <!-- ✅ FORCE ALLURE TO CORRECT LOCATION -->
+        <allure.results.directory>${project.build.directory}/allure-results</allure.results.directory>
+        <allure.report.directory>${project.build.directory}/allure-report</allure.report.directory>
+    </properties>
 
     <dependencies>
 
@@ -41,7 +54,7 @@
             <version>1.13.0</version>
         </dependency>
 
-        <!-- ✅ (Optional) Chart lib (can remove if not using) -->
+        <!-- ✅ Optional -->
         <dependency>
             <groupId>org.jfree</groupId>
             <artifactId>jfreechart</artifactId>
@@ -53,23 +66,55 @@
     <build>
         <plugins>
 
-            <!-- ✅ TESTNG RUNNER -->
+            <!-- ✅ Compiler -->
+            <plugin>
+                <groupId>org.apache.maven.plugins</groupId>
+                <artifactId>maven-compiler-plugin</artifactId>
+                <version>3.11.0</version>
+                <configuration>
+                    <source>${maven.compiler.source}</source>
+                    <target>${maven.compiler.target}</target>
+                </configuration>
+            </plugin>
+
+            <!-- ✅ TestNG -->
             <plugin>
                 <groupId>org.apache.maven.plugins</groupId>
                 <artifactId>maven-surefire-plugin</artifactId>
-                <version>3.0.0-M7</version>
+                <version>3.1.2</version>
                 <configuration>
                     <suiteXmlFiles>
                         <suiteXmlFile>testng.xml</suiteXmlFile>
                     </suiteXmlFiles>
+
+                    <!-- ✅ IMPORTANT FOR ALLURE -->
+                    <systemPropertyVariables>
+                        <allure.results.directory>${allure.results.directory}</allure.results.directory>
+                    </systemPropertyVariables>
                 </configuration>
             </plugin>
 
-            <!-- ✅ ✅ THIS FIXES YOUR ERROR -->
+            <!-- ✅ ✅ CRITICAL FIX -->
             <plugin>
                 <groupId>io.qameta.allure</groupId>
                 <artifactId>allure-maven</artifactId>
                 <version>2.12.0</version>
+
+                <configuration>
+                    <resultsDirectory>${allure.results.directory}</resultsDirectory>
+                    <reportDirectory>${allure.report.directory}</reportDirectory>
+                </configuration>
+
+                <!-- ✅ AUTO GENERATE REPORT -->
+                <executions>
+                    <execution>
+                        <id>allure-report</id>
+                        <phase>verify</phase>
+                        <goals>
+                            <goal>report</goal>
+                        </goals>
+                    </execution>
+                </executions>
             </plugin>
 
         </plugins>

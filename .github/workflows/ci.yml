@@ -14,22 +14,19 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
-      # ✅ Checkout test repo
       - uses: actions/checkout@v4
 
-      # ✅ Checkout API repo
       - uses: actions/checkout@v4
         with:
           repository: chethan-s-g/sample-apis
           path: sample-apis
 
-      # ✅ Java setup
       - uses: actions/setup-java@v4
         with:
           distribution: temurin
           java-version: 17
 
-      # ✅ Start ZAP (only when enabled)
+      # ✅ Start ZAP
       - name: Start ZAP
         if: ${{ github.event.inputs.runSecurity == 'true' }}
         run: |
@@ -40,36 +37,28 @@ jobs:
             zap.sh -daemon -port 8080 -host 0.0.0.0 -config api.disablekey=true
           sleep 20
 
-      # ✅ Build + Start API (FULL FIX)
+      # ✅ Build + Start API
       - name: Build and Start API
         run: |
           cd sample-apis
           mvn -B -DskipTests clean package
 
-          echo "Listing target folder:"
-          ls -l target
-
-          echo "Starting API..."
           nohup java -jar target/user-api-1.0.jar > api.log 2>&1 &
 
-          echo "Waiting for API..."
           for i in {1..20}; do
             sleep 5
             if curl -s http://localhost:8081/api/users > /dev/null; then
               echo "✅ API Started"
               break
             fi
-            echo "Waiting... $i"
           done
 
-          echo "API Logs:"
           cat api.log
 
-      # ✅ Fail fast if API not running
       - name: Verify API
         run: curl --fail http://localhost:8081/api/users
 
-      # ✅ Set TestNG flag
+      # ✅ Toggle ZAP
       - name: Set zapEnabled
         run: |
           if [ "${{ github.event.inputs.runSecurity }}" = "true" ]; then
@@ -78,11 +67,9 @@ jobs:
             sed -i 's|value="true"|value="false"|' testng.xml || true
           fi
 
-      # ✅ Run tests
       - name: Run Tests
         run: mvn -B clean test
 
-      # ✅ Upload Allure results
       - name: Upload Allure Results
         if: always()
         uses: actions/upload-artifact@v4
@@ -92,7 +79,6 @@ jobs:
             **/allure-results/**
             **/target/allure-results/**
 
-      # ✅ Upload ZAP report
       - name: Upload ZAP Report
         if: ${{ github.event.inputs.runSecurity == 'true' && always() }}
         uses: actions/upload-artifact@v4
@@ -104,7 +90,6 @@ jobs:
         if: ${{ github.event.inputs.runSecurity == 'true' }}
         run: docker stop zap
 
-  # ✅ GENERATE + MERGE REPORT
   report:
     needs: build
     runs-on: ubuntu-latest
@@ -112,14 +97,12 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      # ✅ Download Allure results
       - uses: actions/download-artifact@v4
         with:
           name: allure-results
           path: allure-results
 
-      # ✅ Download ZAP (optional)
-      - name: Download ZAP report
+      - name: Download ZAP
         if: ${{ github.event.inputs.runSecurity == 'true' }}
         uses: actions/download-artifact@v4
         with:
@@ -131,27 +114,23 @@ jobs:
           distribution: temurin
           java-version: 17
 
-      # ✅ Generate Allure report
       - name: Generate Allure
         run: |
           mvn -B allure:report \
             -Dallure.results.directory=allure-results \
-            -Dallure.report.directory=target/allure-report
+            -Dallure.report.directory=allure-report
 
-      # ✅ Merge ZAP report
       - name: Merge ZAP
         if: ${{ github.event.inputs.runSecurity == 'true' }}
         run: |
-          mkdir -p target/allure-report/zap
-          cp zap/zap-report.html target/allure-report/zap/index.html
+          mkdir -p allure-report/zap
+          cp zap/zap-report.html allure-report/zap/index.html
 
-      # ✅ Upload for deploy
       - uses: actions/upload-artifact@v4
         with:
           name: site
-          path: target/allure-report
+          path: allure-report
 
-  # ✅ DEPLOY TO PAGES
   deploy:
     needs: report
     runs-on: ubuntu-latest
@@ -164,13 +143,17 @@ jobs:
       name: github-pages
 
     steps:
-      - uses: actions/download-artifact@v4
+      - name: Download site
+        uses: actions/download-artifact@v4
         with:
           name: site
           path: site
 
-      - uses: actions/upload-pages-artifact@v4
+      # ✅ ✅ THIS IS THE FIX
+      - name: Upload Pages Artifact
+        uses: actions/upload-pages-artifact@v4
         with:
           path: site
 
-      - uses: actions/deploy-pages@v4
+      - name: Deploy
+        uses: actions/deploy-pages@v4

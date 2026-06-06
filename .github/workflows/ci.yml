@@ -34,7 +34,7 @@ jobs:
           distribution: temurin
           java-version: 17
 
-      # ✅ Start ZAP (optional)
+      # ✅ Start ZAP
       - name: Start ZAP
         if: ${{ github.event.inputs.runSecurity == 'true' }}
         run: |
@@ -45,7 +45,7 @@ jobs:
             zap.sh -daemon -port 8080 -host 0.0.0.0 -config api.disablekey=true
           sleep 20
 
-      # ✅ Build + Start API
+      # ✅ Build API
       - name: Build and Start API
         run: |
           cd sample-apis
@@ -61,8 +61,6 @@ jobs:
             fi
           done
 
-          cat api.log
-
       - name: Verify API
         run: curl --fail http://localhost:8081/api/users
 
@@ -75,31 +73,29 @@ jobs:
             sed -i 's|value="true"|value="false"|' testng.xml || true
           fi
 
-      # ✅ Run Tests
+      # ✅ Run tests
       - name: Run Tests
         run: mvn -B clean test
 
-      # ✅ Generate Allure Report
+      # ✅ Generate Allure
       - name: Generate Allure Report
         if: always()
         run: mvn -B allure:report
 
-      # ✅ Merge ZAP into Allure
+      # ✅ Merge ZAP report (optional)
       - name: Merge ZAP Report
-        if: ${{ github.event.inputs.runSecurity == 'true' && always() }}
+        if: ${{ github.event.inputs.runSecurity == 'true' }}
         run: |
           mkdir -p target/site/allure-maven-plugin/zap
-          cp zap-report.html target/site/allure-maven-plugin/zap/index.html
+          cp zap-report.html target/site/allure-maven-plugin/zap/index.html || true
 
-      # ✅ Upload Allure (ONLY ONCE like your working file)
-      - name: Upload Report to Pages
-        if: always()
+      # ✅ ✅ KEY STEP (same as your working file)
+      - name: Upload Pages Artifact
         uses: actions/upload-pages-artifact@v4
         with:
           name: github-pages
           path: target/site/allure-maven-plugin
 
-      # ✅ Stop ZAP
       - name: Stop ZAP
         if: ${{ github.event.inputs.runSecurity == 'true' }}
         run: docker stop zap
@@ -108,12 +104,9 @@ jobs:
     runs-on: ubuntu-latest
     needs: api-tests
 
-    if: github.ref == 'refs/heads/main' || github.ref == 'refs/heads/master'
-
     environment:
       name: github-pages
 
     steps:
       - name: Deploy to GitHub Pages
-        id: deployment
         uses: actions/deploy-pages@v4

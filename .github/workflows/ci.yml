@@ -1,0 +1,139 @@
+name: DevSecOps
+
+on:
+  workflow_dispatch:
+    inputs:
+      runSecurity:
+        description: 'Run ZAP active-scan (true/false)'
+        required: false
+        default: 'false'
+
+jobs:
+
+  build:
+    runs-on: ubuntu-latest
+
+    steps:
+
+      # ✅ Checkout test repo
+      - name: Checkout Test Repository
+        uses: actions/checkout@v4
+
+      # ✅ Checkout API repo
+      - name: Checkout API Repository
+        uses: actions/checkout@v4
+        with:
+          repository: chethan-s-g/sample-apis
+          path: sample-apis
+
+      # ✅ Setup Java
+      - name: Setup Java
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: 17
+
+      # ✅ Start ZAP only if needed
+      - name: Start ZAP
+        if: ${{ github.event.inputs.runSecurity == 'true' }}
+        run: |
+          docker run -d \
+            -p 8080:8080 \
+            --name zap \
+            owasp/zap2docker-stable \
+            zap.sh -daemon -port 8080 -host 0.0.0.0 -config api.disablekey=true
+          echo "Waiting for ZAP..."
+          sleep 20
+
+      # ✅ Build and start API
+      - name: Build and Start API
+        run: |
+          cd sample-apis
+          mvn -B -DskipTests clean package
+          nohup java -jar target/*.jar > api.log 2>&1 &
+          sleep 20
+
+      # ✅ Verify API
+      - name: Verify API
+        run: |
+          curl --fail http://localhost:8081/api/users
+
+      # ✅ Set zapEnabled cleanly
+      - name: Set zapEnabled flag
+        run: |
+          if [ "${{ github.event.inputs.runSecurity }}" = "true" ]; then
+            echo "Setting zapEnabled=true"
+            sed -i 's|value="false"|value="true"|' testng.xml || true
+          else
+            echo "Setting zapEnabled=false"
+            sed -i 's|value="true"|value="false"|' testng.xml || true
+          fi
+
+      # ✅ Run tests
+      - name: Run Tests
+        run: mvn -B clean test
+
+      # ✅ Upload Allure results
+      - name: Upload Allure Results
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: allure-results
+          path: |
+            **/allure-results/**
+            **/target/allure-results/**
+
+      # ✅ Upload ZAP report (only if enabled)
+      - name: Upload ZAP Report
+        if: ${{ github.event.inputs.runSecurity == 'true' && always() }}
+        uses: actions/upload-artifact@v4
+        with:
+          name: zap-report
+          path: zap-report.html
+
+      # ✅ Stop ZAP
+      - name: Stop ZAP
+        if: ${{ github.event.inputs.runSecurity == 'true' }}
+        run: docker stop zap
+
+  # ✅ Allure report generation
+  allure-report:
+    needs: build
+    runs-on: ubuntu-latest
+
+    steps:
+
+      - name: Checkout Repo
+        uses: actions/checkout@v4
+
+      - name: Download Allure Results
+        uses: actions/download-artifact@v4
+        with:
+          name: allure-results
+          path: allure-results
+
+      - name: Setup Java
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: 17
+
+      # ✅ Generate Allure report
+      - name: Generate Allure Report
+        run: |
+          mvn -B allure:report \
+            -Dallure.results.directory=allure-results \
+            -Dallure.report.directory=target/allure-report
+
+      # ✅ Zip report
+      - name: Zip Allure Report
+        run: |
+          cd target
+          zip -r allure-report.zip allure-report || true
+
+      # ✅ Upload report
+      - name: Upload Allure Report
+        uses: actions/upload-artifact@v4
+        with:
+          name: allure-report
+          path: target/allure-report.zip

@@ -1,0 +1,10 @@
+
+<!DOCTYPE suite SYSTEM "https://testng.org/testng-1.0.dtd">
+<suite name="API Test Automation">
+    <parameter name="zapEnabled" value="false"/>
+    <test name="APITests">
+        <classes>
+            <class name="tests.UserTest"/>
+        </classes>
+    </test>
+</suite>

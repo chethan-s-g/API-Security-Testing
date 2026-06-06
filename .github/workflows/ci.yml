@@ -114,18 +114,21 @@ jobs:
           distribution: temurin
           java-version: 17
 
+      # ✅ Generate Allure
       - name: Generate Allure
         run: |
           mvn -B allure:report \
             -Dallure.results.directory=allure-results \
             -Dallure.report.directory=allure-report
 
+      # ✅ Merge ZAP
       - name: Merge ZAP
         if: ${{ github.event.inputs.runSecurity == 'true' }}
         run: |
           mkdir -p allure-report/zap
           cp zap/zap-report.html allure-report/zap/index.html
 
+      # ✅ Upload final site
       - uses: actions/upload-artifact@v4
         with:
           name: site
@@ -147,13 +150,27 @@ jobs:
         uses: actions/download-artifact@v4
         with:
           name: site
-          path: site
+          path: .
 
-      # ✅ ✅ THIS IS THE FIX
+      # ✅ ✅ CRITICAL FIX (put files at root)
+      - name: Move files to root
+        run: |
+          ls -l
+          mv allure-report/* . || true
+          ls -l
+
       - name: Upload Pages Artifact
         uses: actions/upload-pages-artifact@v4
         with:
-          path: site
+          path: .
 
       - name: Deploy
+        id: deployment
         uses: actions/deploy-pages@v4
+
+
+      # ✅ FIXED STEP
+      - name: Show URL
+        run: |
+          echo "Report URL:"
+          echo "${{ steps.deployment.outputs.page_url }}"

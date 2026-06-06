@@ -4,12 +4,15 @@ Overview
 - This project runs API tests with TestNG and generates Allure reports.
 - ZAP active-scan is available and will run only when `zapEnabled` is true (configured in `testng.xml`).
 
-```Reports
-# Allure Report
-https://chethan-s-g.github.io/API-Security-Testing/
 
-# ZAP Report
-https://chethan-s-g.github.io/API-Security-Testing/zap/index.html
+## 📊 Reports
+
+### ✅ Allure Test Report
+👉 [Open Allure Report](https://chethan-s-g.github.io/API-Security-Testing/)
+
+### 🔐 ZAP Security Report
+👉 [Open ZAP Report](https://chethan-s-g.github.io/API-Security-Testing/zap/index.html)
+
 ```
 
 Prerequisites

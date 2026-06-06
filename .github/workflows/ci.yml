@@ -9,30 +9,27 @@ on:
         default: 'false'
 
 jobs:
+
   build:
     runs-on: ubuntu-latest
 
     steps:
-
       # ✅ Checkout test repo
-      - name: Checkout Test Repository
-        uses: actions/checkout@v4
+      - uses: actions/checkout@v4
 
       # ✅ Checkout API repo
-      - name: Checkout API Repository
-        uses: actions/checkout@v4
+      - uses: actions/checkout@v4
         with:
           repository: chethan-s-g/sample-apis
           path: sample-apis
 
-      # ✅ Setup Java
-      - name: Setup Java
-        uses: actions/setup-java@v4
+      # ✅ Java setup
+      - uses: actions/setup-java@v4
         with:
           distribution: temurin
           java-version: 17
 
-      # ✅ Start ZAP only if needed
+      # ✅ Start ZAP (only when enabled)
       - name: Start ZAP
         if: ${{ github.event.inputs.runSecurity == 'true' }}
         run: |
@@ -41,44 +38,39 @@ jobs:
             --name zap \
             owasp/zap2docker-stable \
             zap.sh -daemon -port 8080 -host 0.0.0.0 -config api.disablekey=true
-          echo "⏳ Waiting for ZAP..."
           sleep 20
 
-      # ✅ Build and start API (FIXED)
+      # ✅ Build + Start API (FULL FIX)
       - name: Build and Start API
         run: |
           cd sample-apis
-
-          echo "🔧 Building project..."
           mvn -B -DskipTests clean package
 
-          echo "📦 Listing target folder..."
+          echo "Listing target folder:"
           ls -l target
 
-          echo "🚀 Starting API..."
+          echo "Starting API..."
           nohup java -jar target/user-api-1.0.jar > api.log 2>&1 &
 
-          echo "⏳ Waiting for API..."
-
+          echo "Waiting for API..."
           for i in {1..20}; do
             sleep 5
             if curl -s http://localhost:8081/api/users > /dev/null; then
-              echo "✅ API is UP!"
+              echo "✅ API Started"
               break
             fi
-            echo "Waiting... ($i)"
+            echo "Waiting... $i"
           done
 
-          echo "📜 API Logs:"
+          echo "API Logs:"
           cat api.log
 
-      # ✅ Verify API (strict check)
+      # ✅ Fail fast if API not running
       - name: Verify API
-        run: |
-          curl --fail http://localhost:8081/api/users
+        run: curl --fail http://localhost:8081/api/users
 
-      # ✅ Set zapEnabled in testng.xml
-      - name: Set zapEnabled flag
+      # ✅ Set TestNG flag
+      - name: Set zapEnabled
         run: |
           if [ "${{ github.event.inputs.runSecurity }}" = "true" ]; then
             sed -i 's|value="false"|value="true"|' testng.xml || true
@@ -100,7 +92,7 @@ jobs:
             **/allure-results/**
             **/target/allure-results/**
 
-      # ✅ Upload ZAP report (only if enabled)
+      # ✅ Upload ZAP report
       - name: Upload ZAP Report
         if: ${{ github.event.inputs.runSecurity == 'true' && always() }}
         uses: actions/upload-artifact@v4
@@ -108,48 +100,77 @@ jobs:
           name: zap-report
           path: zap-report.html
 
-      # ✅ Stop ZAP
       - name: Stop ZAP
         if: ${{ github.event.inputs.runSecurity == 'true' }}
         run: docker stop zap
 
-  # ✅ Allure report generation
-  allure-report:
+  # ✅ GENERATE + MERGE REPORT
+  report:
     needs: build
     runs-on: ubuntu-latest
 
     steps:
-      - name: Checkout Repo
-        uses: actions/checkout@v4
+      - uses: actions/checkout@v4
 
-      - name: Download Allure Results
-        uses: actions/download-artifact@v4
+      # ✅ Download Allure results
+      - uses: actions/download-artifact@v4
         with:
           name: allure-results
           path: allure-results
 
-      - name: Setup Java
-        uses: actions/setup-java@v4
+      # ✅ Download ZAP (optional)
+      - name: Download ZAP report
+        if: ${{ github.event.inputs.runSecurity == 'true' }}
+        uses: actions/download-artifact@v4
+        with:
+          name: zap-report
+          path: zap
+
+      - uses: actions/setup-java@v4
         with:
           distribution: temurin
           java-version: 17
 
       # ✅ Generate Allure report
-      - name: Generate Allure Report
+      - name: Generate Allure
         run: |
           mvn -B allure:report \
             -Dallure.results.directory=allure-results \
             -Dallure.report.directory=target/allure-report
 
-      # ✅ Zip report
-      - name: Zip Allure Report
+      # ✅ Merge ZAP report
+      - name: Merge ZAP
+        if: ${{ github.event.inputs.runSecurity == 'true' }}
         run: |
-          cd target
-          zip -r allure-report.zip allure-report || true
+          mkdir -p target/allure-report/zap
+          cp zap/zap-report.html target/allure-report/zap/index.html
 
-      # ✅ Upload report
-      - name: Upload Allure Report
-        uses: actions/upload-artifact@v4
+      # ✅ Upload for deploy
+      - uses: actions/upload-artifact@v4
         with:
-          name: allure-report
-          path: target/allure-report.zip
+          name: site
+          path: target/allure-report
+
+  # ✅ DEPLOY TO PAGES
+  deploy:
+    needs: report
+    runs-on: ubuntu-latest
+
+    permissions:
+      pages: write
+      id-token: write
+
+    environment:
+      name: github-pages
+
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          name: site
+          path: site
+
+      - uses: actions/upload-pages-artifact@v4
+        with:
+          path: site
+
+      - uses: actions/deploy-pages@v4

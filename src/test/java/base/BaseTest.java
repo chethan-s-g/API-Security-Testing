@@ -49,7 +49,7 @@ public class BaseTest {
         RestAssured.filters(new AllureRestAssured());
     }
 
-    // ✅ AFTER SUITE → ACTIVE SCAN + REPORT + ALLURE
+    // ✅ AFTER SUITE → ZAP SCAN + SUMMARY + REPORT
     @AfterSuite
     public void runZapAfterSuite() throws Exception {
 
@@ -58,7 +58,7 @@ public class BaseTest {
             return;
         }
 
-        System.out.println("🚀 Starting ZAP Active Scan...");
+        System.out.println("🚀 Starting ZAP Scan...");
 
         ApiResponse scanResp = zapClient.ascan.scan(
                 TARGET,
@@ -72,13 +72,10 @@ public class BaseTest {
         int progress;
         do {
             Thread.sleep(5000);
-
             progress = Integer.parseInt(
                     ((ApiResponseElement) zapClient.ascan.status(scanId)).getValue()
             );
-
             System.out.println("ZAP Progress: " + progress + "%");
-
         } while (progress < 100);
 
         System.out.println("✅ ZAP Scan Completed");
@@ -104,35 +101,36 @@ public class BaseTest {
             }
         }
 
-        // ✅ SUMMARY
+        // ✅ ✅ ✅ YOUR REQUIRED SUMMARY (CORRECT PLACE)
         String summary =
                 "\n=== ZAP SUMMARY ===\n" +
                 "High   : " + high + "\n" +
                 "Medium : " + medium + "\n" +
-                "Low    : " + low + "\n";
+                "Low    : " + low + "\n\n" +
+                "👉 Open Full Report: ../zap/index.html";
 
         System.out.println(summary);
 
         // ✅ Attach summary to Allure
         attachSummary(summary);
 
-        // ✅ Generate ZAP HTML report
+        // ✅ Generate HTML report
         byte[] report = zapClient.core.htmlreport();
         Files.write(Paths.get("zap-report.html"), report);
 
-        // ✅ Attach report to Allure
+        // ✅ Attach full report to Allure
         attachHtmlReport(new String(report));
 
-        System.out.println("✅ ZAP report attached to Allure");
+        System.out.println("✅ ZAP Summary + Report attached");
     }
 
-    // ✅ Allure attachment → summary
+    // ✅ Allure attachment - summary
     @Attachment(value = "ZAP Summary", type = "text/plain")
     public String attachSummary(String summary) {
         return summary;
     }
 
-    // ✅ Allure attachment → full HTML report
+    // ✅ Allure attachment - HTML report
     @Attachment(value = "ZAP Full Report", type = "text/html")
     public String attachHtmlReport(String html) {
         return html;

@@ -38,7 +38,7 @@ jobs:
           distribution: temurin
           java-version: 17
 
-      # ✅ Start ZAP
+      # ✅ Start ZAP (FIXED)
       - name: Start ZAP
         if: ${{ github.event.inputs.runSecurity == 'true' }}
         run: |
@@ -47,20 +47,27 @@ jobs:
             --add-host=host.docker.internal:host-gateway \
             --name zap \
             ghcr.io/zaproxy/zaproxy:2.14.0 \
-            zap.sh -daemon -port 8080 -host 0.0.0.0 -config api.disablekey=true
+            zap.sh -daemon \
+              -port 8080 \
+              -host 0.0.0.0 \
+              -config api.disablekey=true
 
-      # ✅ Wait for ZAP readiness
+          echo "Waiting initial ZAP startup..."
+          sleep 10
+
+      # ✅ ✅ ZAP readiness (ROBUST VERSION)
       - name: Wait for ZAP readiness
         if: ${{ github.event.inputs.runSecurity == 'true' }}
         run: |
-          echo "Checking ZAP readiness..."
+          echo "Checking ZAP container..."
+          docker ps
 
           READY=0
 
           for i in {1..20}; do
             sleep 5
 
-            RESPONSE=$(curl -s http://localhost:8080/JSON/core/view/version/)
+            RESPONSE=$(curl -s http://localhost:8080/JSON/core/view/version/ || true)
 
             if echo "$RESPONSE" | grep -q "version"; then
               echo "✅ ZAP is fully ready!"
@@ -70,8 +77,10 @@ jobs:
 
             echo "Waiting for ZAP... ($i)"
           done
+
           if [ "$READY" -ne 1 ]; then
-            echo "❌ ZAP failed to start properly"
+            echo "❌ ZAP failed to start"
+            docker logs zap || true
             exit 1
           fi
 
@@ -80,8 +89,10 @@ jobs:
         run: |
           cd sample-apis
           mvn -B -DskipTests clean package
+
           nohup java -jar target/user-api-1.0.jar > api.log 2>&1 &
 
+          echo "Waiting for API..."
           for i in {1..20}; do
             sleep 5
             if curl -s http://localhost:8081/api/users > /dev/null; then
@@ -89,6 +100,9 @@ jobs:
               break
             fi
           done
+
+          echo "API Logs:"
+          cat api.log
 
       - name: Verify API
         run: curl --fail http://localhost:8081/api/users
@@ -106,7 +120,7 @@ jobs:
       - name: Run Tests + Allure
         run: mvn -B clean verify
 
-      # ✅ Merge ZAP report into Allure
+      # ✅ Merge ZAP report
       - name: Merge ZAP
         if: ${{ github.event.inputs.runSecurity == 'true' }}
         run: |

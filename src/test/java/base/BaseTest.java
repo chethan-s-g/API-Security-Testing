@@ -36,7 +36,6 @@ public class BaseTest {
         RestAssured.baseURI = API_BASE;
 
         if (zapEnabled) {
-            // ✅ ZAP proxy (correct port)
             RestAssured.proxy("localhost", 8080);
             zapClient = new ClientApi("localhost", 8080);
 
@@ -45,11 +44,10 @@ public class BaseTest {
             System.out.println("✅ ZAP DISABLED");
         }
 
-        // ✅ Allure request/response logging
         RestAssured.filters(new AllureRestAssured());
     }
 
-    // ✅ AFTER SUITE → ZAP SCAN + SUMMARY + REPORT
+    // ✅ AFTER SUITE → SPIDER + ACTIVE SCAN + REPORT
     @AfterSuite
     public void runZapAfterSuite() throws Exception {
 
@@ -58,24 +56,53 @@ public class BaseTest {
             return;
         }
 
-        System.out.println("🚀 Starting ZAP Scan...");
+        // ✅ STEP 1: SPIDER (FIXES YOUR ERROR ✅)
+        System.out.println("🕷 Starting Spider...");
 
-        ApiResponse scanResp = zapClient.ascan.scan(
+        ApiResponse spiderResp = zapClient.spider.scan(
                 TARGET,
-                "True",
-                "False",
-                null, null, null
+                null,
+                null,
+                null,
+                null
         );
 
-        String scanId = ((ApiResponseElement) scanResp).getValue();
+        String spiderId = ((ApiResponseElement) spiderResp).getValue();
 
         int progress;
         do {
             Thread.sleep(5000);
             progress = Integer.parseInt(
+                    ((ApiResponseElement) zapClient.spider.status(spiderId)).getValue()
+            );
+            System.out.println("Spider Progress: " + progress + "%");
+        } while (progress < 100);
+
+        System.out.println("✅ Spider Completed");
+
+        // ✅ Small delay (important)
+        Thread.sleep(5000);
+
+        // ✅ STEP 2: ACTIVE SCAN
+        System.out.println("🚀 Starting ZAP Active Scan...");
+
+        ApiResponse scanResp = zapClient.ascan.scan(
+                TARGET,
+                "True",
+                "False",
+                null,
+                null,
+                null
+        );
+
+        String scanId = ((ApiResponseElement) scanResp).getValue();
+
+        do {
+            Thread.sleep(5000);
+            progress = Integer.parseInt(
                     ((ApiResponseElement) zapClient.ascan.status(scanId)).getValue()
             );
-            System.out.println("ZAP Progress: " + progress + "%");
+            System.out.println("ZAP Scan Progress: " + progress + "%");
         } while (progress < 100);
 
         System.out.println("✅ ZAP Scan Completed");
@@ -87,7 +114,6 @@ public class BaseTest {
         int medium = 0;
         int low = 0;
 
-        // ✅ FINAL FIX (ENUM BASED — NO ERROR)
         for (Alert alert : alerts) {
 
             Alert.Risk risk = alert.getRisk();
@@ -101,24 +127,22 @@ public class BaseTest {
             }
         }
 
-        // ✅ ✅ ✅ YOUR REQUIRED SUMMARY (CORRECT PLACE)
+        // ✅ SUMMARY
         String summary =
                 "\n=== ZAP SUMMARY ===\n" +
                 "High   : " + high + "\n" +
                 "Medium : " + medium + "\n" +
                 "Low    : " + low + "\n\n" +
-                "👉 Open Full Report: ../zap/index.html";
+                "👉 Open Full Report: /zap/index.html";
 
         System.out.println(summary);
 
-        // ✅ Attach summary to Allure
         attachSummary(summary);
 
         // ✅ Generate HTML report
         byte[] report = zapClient.core.htmlreport();
         Files.write(Paths.get("zap-report.html"), report);
 
-        // ✅ Attach full report to Allure
         attachHtmlReport(new String(report));
 
         System.out.println("✅ ZAP Summary + Report attached");

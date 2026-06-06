@@ -73,28 +73,30 @@ jobs:
             sed -i 's|value="true"|value="false"|' testng.xml || true
           fi
 
-      # ✅ Run tests
       - name: Run Tests
         run: mvn -B clean test
 
-      # ✅ Generate Allure
+      # ✅ ✅ IMPORTANT FIX → GENERATE REPORT IN CUSTOM PATH
       - name: Generate Allure Report
         if: always()
-        run: mvn -B allure:report
+        run: |
+          mvn -B allure:report \
+            -Dallure.results.directory=target/allure-results \
+            -Dallure.report.directory=target/allure-report
 
-      # ✅ Merge ZAP report (optional)
+      # ✅ Merge ZAP into SAME ROOT
       - name: Merge ZAP Report
         if: ${{ github.event.inputs.runSecurity == 'true' }}
         run: |
-          mkdir -p target/site/allure-maven-plugin/zap
-          cp zap-report.html target/site/allure-maven-plugin/zap/index.html || true
+          mkdir -p target/allure-report/zap
+          cp zap-report.html target/allure-report/zap/index.html || true
 
-      # ✅ ✅ KEY STEP (same as your working file)
-      - name: Upload Pages Artifact
+      # ✅ ✅ CRITICAL (MATCH YOUR WORKING PIPELINE)
+      - name: Upload Allure report to Pages
         uses: actions/upload-pages-artifact@v4
         with:
           name: github-pages
-          path: target/site/allure-maven-plugin
+          path: target/allure-report
 
       - name: Stop ZAP
         if: ${{ github.event.inputs.runSecurity == 'true' }}

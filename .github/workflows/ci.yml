@@ -9,7 +9,6 @@ on:
         default: 'false'
 
 jobs:
-
   build:
     runs-on: ubuntu-latest
 
@@ -42,30 +41,48 @@ jobs:
             --name zap \
             owasp/zap2docker-stable \
             zap.sh -daemon -port 8080 -host 0.0.0.0 -config api.disablekey=true
-          echo "Waiting for ZAP..."
+          echo "⏳ Waiting for ZAP..."
           sleep 20
 
-      # ✅ Build and start API
+      # ✅ Build and start API (FIXED)
       - name: Build and Start API
         run: |
           cd sample-apis
-          mvn -B -DskipTests clean package
-          nohup java -jar target/*.jar > api.log 2>&1 &
-          sleep 20
 
-      # ✅ Verify API
+          echo "🔧 Building project..."
+          mvn -B -DskipTests clean package
+
+          echo "📦 Listing target folder..."
+          ls -l target
+
+          echo "🚀 Starting API..."
+          nohup java -jar target/user-api-1.0.jar > api.log 2>&1 &
+
+          echo "⏳ Waiting for API..."
+
+          for i in {1..20}; do
+            sleep 5
+            if curl -s http://localhost:8081/api/users > /dev/null; then
+              echo "✅ API is UP!"
+              break
+            fi
+            echo "Waiting... ($i)"
+          done
+
+          echo "📜 API Logs:"
+          cat api.log
+
+      # ✅ Verify API (strict check)
       - name: Verify API
         run: |
           curl --fail http://localhost:8081/api/users
 
-      # ✅ Set zapEnabled cleanly
+      # ✅ Set zapEnabled in testng.xml
       - name: Set zapEnabled flag
         run: |
           if [ "${{ github.event.inputs.runSecurity }}" = "true" ]; then
-            echo "Setting zapEnabled=true"
             sed -i 's|value="false"|value="true"|' testng.xml || true
           else
-            echo "Setting zapEnabled=false"
             sed -i 's|value="true"|value="false"|' testng.xml || true
           fi
 
@@ -102,7 +119,6 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
-
       - name: Checkout Repo
         uses: actions/checkout@v4
 
